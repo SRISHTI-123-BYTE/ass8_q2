@@ -9,12 +9,15 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/SRISHTI-123-BYTE/Q2_Online_Bookstore.git'
-            }
-        }
+        
+stage('Checkout') {
+    steps {
+        deleteDir()
+        git branch: 'main',
+            url: 'https://github.com/SRISHTI-123-BYTE/Q2_Online_Bookstore.git'
+    }
+}
+
 
         stage('Check Docker') {
             steps {
