@@ -1,0 +1,278 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PageTurner Online Bookstore</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f3fc;
+            color: #292344;
+        }
+        header {
+            background: #382568;
+            color: white;
+            text-align: center;
+            padding: 25px;
+        }
+        nav {
+            background: #59419b;
+            padding: 14px;
+            text-align: center;
+            color: white;
+        }
+        main { max-width: 1150px; margin: 25px auto; padding: 0 18px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        input, select {
+            padding: 11px;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+        #search { flex: 1; min-width: 220px; }
+        .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        #books {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 15px;
+        }
+        .book, .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 17px;
+            box-shadow: 0 3px 12px #0000000d;
+        }
+        .cover {
+            text-align: center;
+            background: #eee8ff;
+            border-radius: 8px;
+            font-size: 42px;
+            padding: 20px;
+        }
+        .price { font-size: 19px; font-weight: bold; }
+        .stock { color: #187547; font-weight: bold; }
+        .unavailable { color: #b42318; font-weight: bold; }
+        button {
+            background: #6a48c7;
+            color: white;
+            border: 0;
+            border-radius: 7px;
+            padding: 10px 13px;
+            cursor: pointer;
+        }
+        button:disabled { opacity: .45; cursor: not-allowed; }
+        .book button { width: 100%; }
+        .cart-row {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .total { font-weight: bold; margin: 18px 0; }
+        .message { margin-top: 12px; padding: 10px; background: #eee8ff; overflow-wrap: anywhere; }
+        @media(max-width: 750px) { .layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<header>
+    <h1>📚 PageTurner Bookstore</h1>
+    <p>Discover your next favourite book</p>
+    <strong>Cart items: <span id="count">0</span></strong>
+</header>
+<nav>Home &nbsp; | &nbsp; Books &nbsp; | &nbsp; Shopping Cart &nbsp; | &nbsp; Order Tracking</nav>
+
+<main>
+    <div class="controls">
+        <input id="search" placeholder="Search by title or author">
+        <select id="category">
+            <option value="all">All Categories</option>
+            <option>Technology</option>
+            <option>Fiction</option>
+            <option>Science</option>
+            <option>Business</option>
+            <option>Self-help</option>
+        </select>
+        <select id="availability">
+            <option value="all">All Availability</option>
+            <option value="yes">In Stock</option>
+            <option value="no">Out of Stock</option>
+        </select>
+    </div>
+
+    <div class="layout">
+        <section>
+            <h2>Available Books</h2>
+            <div id="books"></div>
+        </section>
+
+        <aside>
+            <div class="panel">
+                <h2>🛒 Shopping Cart</h2>
+                <div id="cart">Your cart is empty.</div>
+                <p class="total">Total: <span id="total">₹0</span></p>
+                <input id="customer" placeholder="Enter your name">
+                <button id="placeOrder">Place Order</button>
+                <div id="orderMessage" aria-live="polite"></div>
+            </div>
+
+            <div class="panel">
+                <h2>Track Order</h2>
+                <input id="orderId" placeholder="Enter order ID">
+                <button id="trackOrder">Track</button>
+                <p id="trackingMessage" aria-live="polite"></p>
+                <small>Demo checkout only. No real payment is processed.</small>
+            </div>
+        </aside>
+    </div>
+</main>
+
+<script>
+const books = [
+    {id:1,title:"Clean Code",author:"Robert C. Martin",category:"Technology",price:599,stock:true,icon:"💻"},
+    {id:2,title:"The Pragmatic Programmer",author:"Andrew Hunt",category:"Technology",price:699,stock:true,icon:"🧑‍💻"},
+    {id:3,title:"The Hobbit",author:"J. R. R. Tolkien",category:"Fiction",price:399,stock:true,icon:"🐉"},
+    {id:4,title:"A Brief History of Time",author:"Stephen Hawking",category:"Science",price:449,stock:true,icon:"🌌"},
+    {id:5,title:"Atomic Habits",author:"James Clear",category:"Self-help",price:499,stock:true,icon:"🌱"},
+    {id:6,title:"The Lean Startup",author:"Eric Ries",category:"Business",price:525,stock:false,icon:"🚀"},
+    {id:7,title:"Dune",author:"Frank Herbert",category:"Fiction",price:575,stock:true,icon:"🏜️"},
+    {id:8,title:"The Innovators",author:"Walter Isaacson",category:"Technology",price:625,stock:true,icon:"💡"}
+];
+
+const cart = new Map();
+const orders = new Map();
+const money = amount => "₹" + amount.toFixed(2);
+
+function renderBooks() {
+    const query = document.getElementById("search").value.toLowerCase().trim();
+    const category = document.getElementById("category").value;
+    const availability = document.getElementById("availability").value;
+
+    const filtered = books.filter(book =>
+        (book.title.toLowerCase().includes(query) ||
+         book.author.toLowerCase().includes(query)) &&
+        (category === "all" || book.category === category) &&
+        (availability === "all" ||
+         (availability === "yes" && book.stock) ||
+         (availability === "no" && !book.stock))
+    );
+
+    document.getElementById("books").innerHTML = filtered.length
+        ? filtered.map(book => `
+            <article class="book">
+                <div class="cover">${book.icon}</div>
+                <h3>${book.title}</h3>
+                <p>Author: ${book.author}</p>
+                <p>Category: ${book.category}</p>
+                <p class="price">${money(book.price)}</p>
+                <p class="${book.stock ? "stock" : "unavailable"}">
+                    ${book.stock ? "In Stock" : "Out of Stock"}
+                </p>
+                <button data-add="${book.id}" ${book.stock ? "" : "disabled"}>
+                    Add to Cart
+                </button>
+            </article>
+        `).join("")
+        : "<p>No books match your search.</p>";
+
+    document.querySelectorAll("[data-add]").forEach(button => {
+        button.onclick = () => {
+            const id = Number(button.dataset.add);
+            cart.set(id, (cart.get(id) || 0) + 1);
+            renderCart();
+        };
+    });
+}
+
+function renderCart() {
+    let total = 0;
+    let count = 0;
+
+    cart.forEach((quantity, id) => {
+        const book = books.find(item => item.id === id);
+        total += book.price * quantity;
+        count += quantity;
+    });
+
+    document.getElementById("count").textContent = count;
+    document.getElementById("total").textContent = money(total);
+
+    document.getElementById("cart").innerHTML = cart.size
+        ? [...cart].map(([id, quantity]) => {
+            const book = books.find(item => item.id === id);
+            return `<div class="cart-row">
+                <span>${book.title} × ${quantity}<br>${money(book.price * quantity)}</span>
+                <span>
+                    <button data-minus="${id}">−</button>
+                    <button data-plus="${id}">+</button>
+                </span>
+            </div>`;
+        }).join("")
+        : "Your cart is empty.";
+
+    document.querySelectorAll("[data-minus]").forEach(button => {
+        button.onclick = () => {
+            const id = Number(button.dataset.minus);
+            const quantity = cart.get(id);
+            quantity <= 1 ? cart.delete(id) : cart.set(id, quantity - 1);
+            renderCart();
+        };
+    });
+
+    document.querySelectorAll("[data-plus]").forEach(button => {
+        button.onclick = () => {
+            const id = Number(button.dataset.plus);
+            cart.set(id, cart.get(id) + 1);
+            renderCart();
+        };
+    });
+
+    document.getElementById("placeOrder").disabled = cart.size === 0;
+}
+
+document.getElementById("search").addEventListener("input", renderBooks);
+document.getElementById("category").addEventListener("change", renderBooks);
+document.getElementById("availability").addEventListener("change", renderBooks);
+
+document.getElementById("placeOrder").onclick = () => {
+    const name = document.getElementById("customer").value.trim();
+    if (!name) {
+        document.getElementById("orderMessage").textContent = "Please enter your name.";
+        return;
+    }
+    if (!cart.size) return;
+
+    const id = "PT-" + Math.floor(100000 + Math.random() * 900000);
+    let total = 0;
+    cart.forEach((quantity, bookId) => {
+        total += books.find(book => book.id === bookId).price * quantity;
+    });
+
+    orders.set(id, {name, total, status:"Confirmed"});
+    cart.clear();
+    renderCart();
+
+    document.getElementById("orderId").value = id;
+    document.getElementById("orderMessage").textContent =
+        "Order placed successfully! Your order ID is " + id;
+    document.getElementById("trackingMessage").textContent = "Status: Confirmed";
+};
+
+document.getElementById("trackOrder").onclick = () => {
+    const id = document.getElementById("orderId").value.trim().toUpperCase();
+    const order = orders.get(id);
+    document.getElementById("trackingMessage").textContent = order
+        ? `${order.status} — ${order.name} — ${money(order.total)}`
+        : "Order not found. Use an order ID from this browser session.";
+};
+
+renderBooks();
+renderCart();
+</script>
+</body>
+</html>
+```
