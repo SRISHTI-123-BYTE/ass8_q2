@@ -8,16 +8,29 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
-                echo 'Source code is stored in GitHub.'
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/SRISHTI-123-BYTE/Q2_Online_Bookstore.git'
+            }
+        }
+
+        stage('Check Docker') {
+            steps {
+                bat '''
+                    docker --version
+                    docker info
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                bat 'docker build -t %IMAGE_NAME%:%BUILD_NUMBER% .'
+                bat '''
+                    docker build --no-cache -t %IMAGE_NAME%:%BUILD_NUMBER% .
+                    docker tag %IMAGE_NAME%:%BUILD_NUMBER% %IMAGE_NAME%:latest
+                '''
             }
         }
 
@@ -33,7 +46,6 @@ pipeline {
                     bat '''
                         docker login -u "%DOCKER_USER%" -p "%DOCKER_PASS%"
                         docker push %IMAGE_NAME%:%BUILD_NUMBER%
-                        docker tag %IMAGE_NAME%:%BUILD_NUMBER% %IMAGE_NAME%:latest
                         docker push %IMAGE_NAME%:latest
                         docker logout
                     '''
@@ -44,7 +56,10 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
+                    file(
+                        credentialsId: 'kubeconfig',
+                        variable: 'KUBECONFIG'
+                    )
                 ]) {
                     withEnv(["PATH=${DOCKER_BIN};${env.PATH}"]) {
                         bat '''
@@ -59,7 +74,10 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 withCredentials([
-                    file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
+                    file(
+                        credentialsId: 'kubeconfig',
+                        variable: 'KUBECONFIG'
+                    )
                 ]) {
                     withEnv(["PATH=${DOCKER_BIN};${env.PATH}"]) {
                         bat '''
@@ -67,10 +85,25 @@ pipeline {
                             kubectl.exe get pods
                             kubectl.exe get services
                             kubectl.exe get deployment bookstore-deployment -o jsonpath="{.spec.template.spec.containers[0].image}"
+                            echo.
                         '''
                     }
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'SUCCESS: Docker image built, pushed, and deployed to Kubernetes.'
+        }
+
+        failure {
+            echo 'FAILED: Check the first red error in the Jenkins console output.'
+        }
+
+        always {
+            echo 'Pipeline execution completed.'
         }
     }
 }
